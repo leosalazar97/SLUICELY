@@ -1,0 +1,4 @@
+# Clippy settings. Tests may use unwrap() and expect() freely (Document 0, section 15).
+
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

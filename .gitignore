@@ -1,1 +1,17 @@
+# Files git must not track.
+
+# Rust
 /target
+
+# Node and Next.js (used later)
+node_modules/
+.next/
+
+# Secrets and local settings
+.env
+.env.*
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store

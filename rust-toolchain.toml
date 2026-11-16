@@ -1,0 +1,6 @@
+# Pins the Rust channel for everyone (you, CI, the AIs' assumptions).
+# rustup reads this file by itself when you run cargo in this folder.
+
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

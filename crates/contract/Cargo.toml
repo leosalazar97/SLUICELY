@@ -1,0 +1,11 @@
+# The contract crate: shared types, traits and errors for all areas.
+# Empty for now. Content comes in a later round.
+
+[package]
+name = "contract"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

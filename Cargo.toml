@@ -1,0 +1,21 @@
+# Workspace root: lists the crates and sets rules shared by all of them.
+#
+# LEARN: A workspace is like a Maven multi-module project or an npm workspace.
+# One root file, many crates. They share one `target/` folder and one lock file.
+
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Rules for every crate that adds `[lints] workspace = true`.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
