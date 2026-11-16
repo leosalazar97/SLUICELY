@@ -1,0 +1,35 @@
+# CI: runs on every push and pull request.
+# It checks formatting, clippy (every warning fails the build) and tests.
+#
+# LEARN: This is like a Jenkins job or a GitHub Action in a JS project.
+# GitHub starts a fresh Linux machine, gets the code, and runs the commands.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      # Same channel and components as rust-toolchain.toml.
+      # If you pin a version there later, change it here too.
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test
