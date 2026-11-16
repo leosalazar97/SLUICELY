@@ -11,6 +11,7 @@ members = ["crates/*"]
 version = "0.0.0"
 edition = "2021"
 publish = false
+license = "MIT"
 
 # Rules for every crate that adds `[lints] workspace = true`.
 [workspace.lints.rust]
