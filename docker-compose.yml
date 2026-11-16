@@ -1,0 +1,31 @@
+# Docker Compose for local development. It starts PostgreSQL only.
+# Other services are added in later rounds, when they exist.
+#
+# LEARN: Compose is like a small Spring Boot "dev environment" file.
+# One command starts the database, and the same command stops it.
+# The data lives in a named volume, so it survives a restart of the container.
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: sluicely-postgres
+    environment:
+      # Local development only. This is not a real secret.
+      # The port below is bound to 127.0.0.1, so only your machine can reach it.
+      POSTGRES_USER: sluicely
+      POSTGRES_PASSWORD: sluicely_dev_password
+      POSTGRES_DB: sluicely
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - sluicely_pgdata:/var/lib/postgresql/data
+    # Memory limit for the 8 GB laptop. A proposal, tune it after we measure.
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sluicely -d sluicely"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  sluicely_pgdata:
