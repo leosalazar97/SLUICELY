@@ -13,24 +13,13 @@
 
 //! The contract crate.
 //!
-//! It will hold the types, traits and errors that all areas share.
-//! Right now it only has one tiny function, so we can check that the
-//! workspace, the lints and the tests all work.
+//! It holds the types, traits and errors that all areas share.
+//! This file only declares the modules and re-exports their public items.
 
-/// Returns the project name.
-///
-/// Errors: none.
-/// Guarantees: always returns the same text.
-pub fn project_name() -> &'static str {
-    "sluicely"
-}
+pub mod clock;
+pub mod ids;
+pub mod random;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn project_name_is_sluicely() {
-        assert_eq!(project_name(), "sluicely");
-    }
-}
+pub use clock::Clock;
+pub use ids::{EventId, ReservationId, SessionId, UserId};
+pub use random::RandomSource;

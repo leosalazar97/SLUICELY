@@ -20,3 +20,10 @@ unsafe_code = "forbid"
 [workspace.lints.clippy]
 unwrap_used = "warn"
 expect_used = "warn"
+
+# Versions of shared libraries, in one place. Crates use `name.workspace = true`.
+# chrono: no default features on purpose. Without the `clock` feature,
+# `Utc::now()` does not exist, so the contract cannot read the real clock.
+[workspace.dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+uuid = "1"
