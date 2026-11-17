@@ -85,6 +85,11 @@ define_id! {
     ReservationId
 }
 
+define_id! {
+    /// Identifies one completed purchase (one order).
+    OrderId
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

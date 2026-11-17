@@ -27,3 +27,4 @@ expect_used = "warn"
 [workspace.dependencies]
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 uuid = "1"
+thiserror = "2"

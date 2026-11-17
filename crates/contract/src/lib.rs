@@ -17,9 +17,13 @@
 //! This file only declares the modules and re-exports their public items.
 
 pub mod clock;
+pub mod idempotency_key;
 pub mod ids;
 pub mod random;
+pub mod seed;
 
 pub use clock::Clock;
-pub use ids::{EventId, ReservationId, SessionId, UserId};
+pub use idempotency_key::{IdempotencyKey, IdempotencyKeyError, MAX_IDEMPOTENCY_KEY_LENGTH};
+pub use ids::{EventId, OrderId, ReservationId, SessionId, UserId};
 pub use random::RandomSource;
+pub use seed::Seed;
