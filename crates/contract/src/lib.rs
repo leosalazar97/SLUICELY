@@ -17,13 +17,21 @@
 //! This file only declares the modules and re-exports their public items.
 
 pub mod clock;
+pub mod event_settings;
 pub mod idempotency_key;
 pub mod ids;
+pub mod queue_position;
 pub mod random;
+pub mod reservation_status;
 pub mod seed;
+pub mod ticket_quantity;
 
 pub use clock::Clock;
+pub use event_settings::{EventSettings, EventSettingsError, DEFAULT_RESERVATION_TTL_SECONDS};
 pub use idempotency_key::{IdempotencyKey, IdempotencyKeyError, MAX_IDEMPOTENCY_KEY_LENGTH};
 pub use ids::{EventId, OrderId, ReservationId, SessionId, UserId};
+pub use queue_position::QueuePosition;
 pub use random::RandomSource;
+pub use reservation_status::{ReservationStatus, ReservationStatusParseError};
 pub use seed::Seed;
+pub use ticket_quantity::{TicketQuantity, TicketQuantityError, MAX_TICKETS_PER_USER};
