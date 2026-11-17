@@ -11,6 +11,8 @@
 // 4. If you need something else, write a change request.
 // ============================================================
 
+#![deny(clippy::unwrap_used, clippy::expect_used)]
+
 //! The contract crate.
 //!
 //! It holds the types, traits and errors that all areas share.
