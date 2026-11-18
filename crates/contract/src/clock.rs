@@ -1,6 +1,6 @@
 // ============================================================
 // SHARED FILE
-// Owner: contract (written by Claude). Others: do not edit. Ask Leonardo.
+// Owner area: B (Claude). Others: do not edit. Ask Leonardo.
 // Used by: A (policy, controller, sim), B (inventory, event_owner), C (api)
 // Status: CONTRACT: open
 //
