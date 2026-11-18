@@ -24,6 +24,7 @@ pub mod event_settings;
 pub mod idempotency_key;
 pub mod ids;
 pub mod queue_entry;
+pub mod queue_entry_status;
 pub mod queue_position;
 pub mod random;
 pub mod rate_controller;
@@ -37,6 +38,7 @@ pub use event_settings::{EventSettings, EventSettingsError, DEFAULT_RESERVATION_
 pub use idempotency_key::{IdempotencyKey, IdempotencyKeyError, MAX_IDEMPOTENCY_KEY_LENGTH};
 pub use ids::{EventId, OrderId, ReservationId, SessionId, UserId};
 pub use queue_entry::QueueEntry;
+pub use queue_entry_status::{QueueEntryStatus, QueueEntryStatusParseError};
 pub use queue_position::QueuePosition;
 pub use random::RandomSource;
 pub use rate_controller::{AdmissionRate, BackendObservation, ObservationError, RateController};
