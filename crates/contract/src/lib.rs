@@ -45,7 +45,7 @@ pub use owner_command::OwnerCommand;
 pub use owner_error::OwnerError;
 pub use queue_entry::QueueEntry;
 pub use queue_entry_status::{QueueEntryStatus, QueueEntryStatusParseError};
-pub use queue_position::QueuePosition;
+pub use queue_position::{QueuePosition, QueuePositionError};
 pub use random::RandomSource;
 pub use rate_controller::{AdmissionRate, BackendObservation, ObservationError, RateController};
 pub use reservation_status::{ReservationStatus, ReservationStatusParseError};

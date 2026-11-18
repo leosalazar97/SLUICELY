@@ -15,15 +15,24 @@
 //!
 //! A user has one active reservation per event (invariant I2). That
 //! reservation holds 1 to `MAX_TICKETS_PER_USER` tickets. The check happens
-//! once, when the value is created, so inner code can trust it.
+//! once, when the value is created, so inner code can trust it. The same
+//! check runs when the value is read from JSON.
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// The most tickets one user can hold in one event. Decided by Leonardo.
 pub const MAX_TICKETS_PER_USER: u32 = 4;
 
+// LEARN: A plain `derive(Deserialize)` would write the number straight into
+// the private field and skip `TicketQuantity::new`. Then JSON with 99 would
+// give a quantity of 99, and I1 could break. `try_from = "u32"` tells serde:
+// read a `u32` first, then call `TryFrom`, which calls our check. `into =
+// "u32"` is the way back when writing JSON. It is like a Jackson
+// `@JsonCreator` that validates its input.
 /// A ticket count between 1 and `MAX_TICKETS_PER_USER`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(try_from = "u32", into = "u32")]
 pub struct TicketQuantity(u32);
 
 /// Why a quantity was rejected.
@@ -58,6 +67,22 @@ impl TicketQuantity {
     }
 }
 
+impl TryFrom<u32> for TicketQuantity {
+    type Error = TicketQuantityError;
+
+    /// Same as `TicketQuantity::new`. Used by serde when it reads JSON.
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<TicketQuantity> for u32 {
+    /// Gives the plain number. Used by serde when it writes JSON.
+    fn from(quantity: TicketQuantity) -> Self {
+        quantity.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -84,5 +109,21 @@ mod tests {
     fn rejects_one_above_the_maximum() {
         assert!(TicketQuantity::new(MAX_TICKETS_PER_USER + 1).is_err());
         assert!(TicketQuantity::new(u32::MAX).is_err());
+    }
+
+    #[test]
+    fn json_form_is_a_plain_number_and_is_checked() {
+        let quantity = TicketQuantity::new(3).unwrap();
+        assert_eq!(serde_json::to_string(&quantity).unwrap(), "3");
+        assert_eq!(
+            serde_json::from_str::<TicketQuantity>("4").unwrap().get(),
+            4
+        );
+        for bad in ["0", "5", "4294967295", "-1"] {
+            assert!(
+                serde_json::from_str::<TicketQuantity>(bad).is_err(),
+                "should reject {bad}"
+            );
+        }
     }
 }

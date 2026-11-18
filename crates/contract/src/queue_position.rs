@@ -12,10 +12,28 @@
 // ============================================================
 
 //! A place in the queue. Place 1 is the first user to be served.
+//!
+//! The JSON form is a plain number. Reading JSON runs the same check as
+//! `QueuePosition::new`, so place 0 can never be built.
 
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+// LEARN: Same idea as in `TicketQuantity`. `try_from = "u64"` makes serde
+// read a number and then call our `TryFrom`, which rejects 0. Without it,
+// JSON with 0 would build an invalid position.
 /// A queue place, counted from 1. Place 0 does not exist.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(try_from = "u64", into = "u64")]
 pub struct QueuePosition(u64);
+
+/// Why a position was rejected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+pub enum QueuePositionError {
+    /// The number is 0. Places start at 1.
+    #[error("queue position must be 1 or more")]
+    Zero,
+}
 
 impl QueuePosition {
     /// Builds a position from a number counted from 1.
@@ -36,6 +54,22 @@ impl QueuePosition {
     /// Guarantees: the value is 1 or more.
     pub fn get(&self) -> u64 {
         self.0
+    }
+}
+
+impl TryFrom<u64> for QueuePosition {
+    type Error = QueuePositionError;
+
+    /// Same check as `QueuePosition::new`. Used by serde when it reads JSON.
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Self::new(value).ok_or(QueuePositionError::Zero)
+    }
+}
+
+impl From<QueuePosition> for u64 {
+    /// Gives the plain number. Used by serde when it writes JSON.
+    fn from(position: QueuePosition) -> Self {
+        position.0
     }
 }
 
@@ -61,5 +95,17 @@ mod tests {
         assert_eq!(first.get(), 1);
         assert!(first < second);
         assert_eq!(second.to_string(), "2");
+    }
+
+    #[test]
+    fn json_form_is_a_plain_number_and_zero_is_rejected() {
+        let position = QueuePosition::new(7).unwrap();
+        assert_eq!(serde_json::to_string(&position).unwrap(), "7");
+        assert_eq!(
+            serde_json::from_str::<QueuePosition>("7").unwrap(),
+            position
+        );
+        assert!(serde_json::from_str::<QueuePosition>("0").is_err());
+        assert!(serde_json::from_str::<QueuePosition>("-1").is_err());
     }
 }
