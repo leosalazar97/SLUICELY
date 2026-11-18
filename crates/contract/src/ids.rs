@@ -36,6 +36,12 @@ macro_rules! define_id {
     ($(#[$meta:meta])* $name:ident) => {
         $(#[$meta])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        #[derive(::serde::Serialize, ::serde::Deserialize)]
+        // LEARN: `transparent` means the JSON form is only the inner UUID text,
+        // for example "3f2b...". Without it, an ID would become an object with
+        // a field. It is like `@JsonValue` in Jackson. It is safe for IDs:
+        // every UUID is a valid ID, so reading one from JSON cannot break a rule.
+        #[serde(transparent)]
         pub struct $name(::uuid::Uuid);
 
         impl $name {
@@ -113,5 +119,13 @@ mod tests {
         let second = UserId::from_uuid(Uuid::from_u128(2));
         assert_ne!(first, second);
         assert!(first < second);
+    }
+
+    #[test]
+    fn json_form_is_the_plain_uuid_text() {
+        let id = EventId::from_uuid(Uuid::from_u128(42));
+        let json = serde_json::to_string(&id).unwrap();
+        assert_eq!(json, "\"00000000-0000-0000-0000-00000000002a\"");
+        assert_eq!(serde_json::from_str::<EventId>(&json).unwrap(), id);
     }
 }
