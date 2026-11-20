@@ -16,15 +16,21 @@
 //! Join gives a `QueueState`, reserve gives a `ReservationAnswer`, buy gives a
 //! `PurchaseAnswer`. Leave has no data, so it answers with `()`. The failed
 //! answers are in `OwnerError`. Every value inside is already checked, so the
-//! fields are public.
+//! fields are public. The JSON form is used by the api and by the
+//! idempotency table. Reading JSON runs the checks of the inner types.
 
 use crate::ids::{OrderId, ReservationId};
 use crate::queue_position::QueuePosition;
 use crate::ticket_quantity::TicketQuantity;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
+// LEARN: `tag = "state"` writes the variant name in a field "state", for
+// example {"state":"waiting","position":5} and {"state":"admitted"}. It is
+// easy to read in JavaScript: `if (message.state === "waiting")`.
 /// Where a user is in the queue right now.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
 pub enum QueueState {
     /// Waiting, at this place.
     Waiting { position: QueuePosition },
@@ -33,7 +39,7 @@ pub enum QueueState {
 }
 
 /// A reservation that was created.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReservationAnswer {
     pub reservation_id: ReservationId,
     pub quantity: TicketQuantity,
@@ -42,7 +48,7 @@ pub struct ReservationAnswer {
 }
 
 /// A purchase that was completed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PurchaseAnswer {
     pub order_id: OrderId,
     pub reservation_id: ReservationId,
@@ -79,5 +85,43 @@ mod tests {
             position: QueuePosition::new(5).unwrap(),
         };
         assert_ne!(state, QueueState::Admitted);
+    }
+
+    #[test]
+    fn queue_state_json_has_a_state_field() {
+        let waiting = QueueState::Waiting {
+            position: QueuePosition::new(5).unwrap(),
+        };
+        assert_eq!(
+            serde_json::to_string(&waiting).unwrap(),
+            r#"{"state":"waiting","position":5}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&QueueState::Admitted).unwrap(),
+            r#"{"state":"admitted"}"#
+        );
+        for state in [waiting, QueueState::Admitted] {
+            let json = serde_json::to_string(&state).unwrap();
+            assert_eq!(serde_json::from_str::<QueueState>(&json).unwrap(), state);
+        }
+    }
+
+    #[test]
+    fn json_round_trip_works_and_a_bad_quantity_is_rejected() {
+        let reservation = ReservationAnswer {
+            reservation_id: ReservationId::from_uuid(Uuid::from_u128(1)),
+            quantity: TicketQuantity::new(3).unwrap(),
+            expires_at: DateTime::<Utc>::from_timestamp(1300, 0).unwrap(),
+        };
+        let json = serde_json::to_string(&reservation).unwrap();
+        assert_eq!(
+            serde_json::from_str::<ReservationAnswer>(&json).unwrap(),
+            reservation
+        );
+
+        // The check of TicketQuantity runs inside the answer too.
+        let bad = json.replace("\"quantity\":3", "\"quantity\":99");
+        assert_ne!(bad, json, "the replace must really change the text");
+        assert!(serde_json::from_str::<ReservationAnswer>(&bad).is_err());
     }
 }

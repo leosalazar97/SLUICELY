@@ -16,13 +16,18 @@
 //! `Reserved` becomes `Purchased`, `Expired` or `Cancelled`. The text form
 //! (`as_str`, `parse`) is what the database stores, so nobody writes their own.
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 // LEARN: A Rust `enum` is like a Java enum, but each value can also carry
 // data. Here the values carry nothing. `match` on it must cover every value,
 // so if we add a status later, the compiler shows every place to update.
 /// The state of one reservation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+// LEARN: `rename_all = "lowercase"` makes serde write `Reserved` as "reserved".
+// This is the same text as `as_str`, which the database stores. Two places
+// write this text now, so the test below checks that they always agree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ReservationStatus {
     /// Tickets are held for the user until `expires_at`.
     Reserved,
@@ -129,5 +134,18 @@ mod tests {
             assert_eq!(status.holds_stock(), holds_stock, "{status:?}");
             assert_eq!(status.is_final(), is_final, "{status:?}");
         }
+    }
+
+    #[test]
+    fn json_form_is_the_same_text_as_the_database_text() {
+        for status in ReservationStatus::ALL {
+            let json = serde_json::to_string(&status).unwrap();
+            assert_eq!(json, format!("\"{}\"", status.as_str()));
+            assert_eq!(
+                serde_json::from_str::<ReservationStatus>(&json).unwrap(),
+                status
+            );
+        }
+        assert!(serde_json::from_str::<ReservationStatus>("\"Reserved\"").is_err());
     }
 }

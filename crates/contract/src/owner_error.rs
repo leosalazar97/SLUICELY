@@ -24,10 +24,17 @@
 //! `OwnerError::is_stored_under_key`.
 
 use crate::reservation_status::ReservationStatus;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Why a command to the owner failed.
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+// LEARN: `tag = "error"` puts the variant name in a field called "error", for
+// example {"error":"sold_out"}. A variant with data adds its fields next to
+// it: {"error":"reservation_not_active","status":"expired"}. These codes are
+// STORED in the idempotency table. After the contract is frozen, renaming a
+// variant would make old stored rows unreadable.
+#[derive(Debug, Clone, PartialEq, Eq, Error, Serialize, Deserialize)]
+#[serde(tag = "error", rename_all = "snake_case")]
 pub enum OwnerError {
     /// The session left before. `Left` is final, so it cannot join again.
     #[error("this session already left the queue and cannot join again")]
@@ -148,6 +155,25 @@ mod tests {
                 error != OwnerError::TemporarilyUnavailable,
                 "{error:?}"
             );
+        }
+    }
+
+    #[test]
+    fn json_form_has_a_stable_error_code() {
+        assert_eq!(
+            serde_json::to_string(&OwnerError::SoldOut).unwrap(),
+            r#"{"error":"sold_out"}"#
+        );
+        let error = OwnerError::ReservationNotActive {
+            status: ReservationStatus::Expired,
+        };
+        assert_eq!(
+            serde_json::to_string(&error).unwrap(),
+            r#"{"error":"reservation_not_active","status":"expired"}"#
+        );
+        for error in every_error() {
+            let json = serde_json::to_string(&error).unwrap();
+            assert_eq!(serde_json::from_str::<OwnerError>(&json).unwrap(), error);
         }
     }
 }

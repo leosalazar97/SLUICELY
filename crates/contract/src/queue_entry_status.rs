@@ -17,10 +17,13 @@
 //! `Left` is final. The text form (`as_str`, `parse`) is what the database
 //! stores, so nobody writes their own.
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// The state of one queue entry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+// The JSON text must stay equal to `as_str`. A test below checks it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum QueueEntryStatus {
     /// The user waits for admission and has a queue position.
     Waiting,
@@ -105,5 +108,18 @@ mod tests {
         for status in QueueEntryStatus::ALL {
             assert_eq!(status.is_final(), status == QueueEntryStatus::Left);
         }
+    }
+
+    #[test]
+    fn json_form_is_the_same_text_as_the_database_text() {
+        for status in QueueEntryStatus::ALL {
+            let json = serde_json::to_string(&status).unwrap();
+            assert_eq!(json, format!("\"{}\"", status.as_str()));
+            assert_eq!(
+                serde_json::from_str::<QueueEntryStatus>(&json).unwrap(),
+                status
+            );
+        }
+        assert!(serde_json::from_str::<QueueEntryStatus>("\"Waiting\"").is_err());
     }
 }
