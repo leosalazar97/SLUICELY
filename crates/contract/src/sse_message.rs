@@ -36,6 +36,9 @@ pub enum SseMessage {
     Admitted,
     /// The reservation expired and its tickets went back to stock.
     ReservationExpired { reservation_id: ReservationId },
+    /// The user joined while the window is open. The order is decided when
+    /// the window closes, so there is no position yet.
+    WindowOpen,
 }
 
 impl SseMessage {
@@ -45,6 +48,7 @@ impl SseMessage {
     /// Guarantees: the name is equal to the `type` field in the JSON form.
     pub fn event_name(&self) -> &'static str {
         match self {
+            SseMessage::WindowOpen => "window_open",
             SseMessage::Waiting { .. } => "waiting",
             SseMessage::Admitted => "admitted",
             SseMessage::ReservationExpired { .. } => "reservation_expired",
@@ -56,6 +60,7 @@ impl From<QueueState> for SseMessage {
     /// Turns the queue state of a `Join` answer into the SSE message.
     fn from(state: QueueState) -> Self {
         match state {
+            QueueState::WindowOpen => SseMessage::WindowOpen,
             QueueState::Waiting { position } => SseMessage::Waiting { position },
             QueueState::Admitted => SseMessage::Admitted,
         }
@@ -76,6 +81,7 @@ mod tests {
             SseMessage::ReservationExpired {
                 reservation_id: ReservationId::from_uuid(Uuid::from_u128(1)),
             },
+            SseMessage::WindowOpen,
         ]
     }
 
@@ -93,6 +99,10 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&messages[2]).unwrap(),
             r#"{"type":"reservation_expired","reservation_id":"00000000-0000-0000-0000-000000000001"}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&messages[3]).unwrap(),
+            r#"{"type":"window_open"}"#
         );
     }
 

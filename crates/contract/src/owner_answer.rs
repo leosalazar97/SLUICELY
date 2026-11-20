@@ -36,6 +36,9 @@ pub enum QueueState {
     Waiting { position: QueuePosition },
     /// Admitted: the user may reserve.
     Admitted,
+    /// Joined while the opening window is open. The order is not decided yet,
+    /// so there is no position. It is decided when the window closes.
+    WindowOpen,
 }
 
 /// A reservation that was created.
@@ -93,6 +96,10 @@ mod tests {
             position: QueuePosition::new(5).unwrap(),
         };
         assert_eq!(
+            serde_json::to_string(&QueueState::WindowOpen).unwrap(),
+            r#"{"state":"window_open"}"#
+        );
+        assert_eq!(
             serde_json::to_string(&waiting).unwrap(),
             r#"{"state":"waiting","position":5}"#
         );
@@ -100,7 +107,7 @@ mod tests {
             serde_json::to_string(&QueueState::Admitted).unwrap(),
             r#"{"state":"admitted"}"#
         );
-        for state in [waiting, QueueState::Admitted] {
+        for state in [QueueState::WindowOpen, waiting, QueueState::Admitted] {
             let json = serde_json::to_string(&state).unwrap();
             assert_eq!(serde_json::from_str::<QueueState>(&json).unwrap(), state);
         }

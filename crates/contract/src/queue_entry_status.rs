@@ -25,7 +25,8 @@ use thiserror::Error;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum QueueEntryStatus {
-    /// The user waits for admission and has a queue position.
+    /// The user waits for admission. The queue position is empty until the
+    /// window closes and the order is decided.
     Waiting,
     /// The user may reserve tickets. In v1.0 an admission does not expire.
     Admitted,
