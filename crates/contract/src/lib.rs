@@ -22,6 +22,7 @@ pub mod admission_policy;
 pub mod clock;
 pub mod event_settings;
 pub mod idempotency_key;
+pub mod idempotency_record;
 pub mod ids;
 pub mod owner_answer;
 pub mod owner_command;
@@ -40,6 +41,9 @@ pub use admission_policy::{AdmissionPolicy, PolicyError};
 pub use clock::Clock;
 pub use event_settings::{EventSettings, EventSettingsError, DEFAULT_RESERVATION_TTL_SECONDS};
 pub use idempotency_key::{IdempotencyKey, IdempotencyKeyError, MAX_IDEMPOTENCY_KEY_LENGTH};
+pub use idempotency_record::{
+    IdempotentOperation, IdempotentOperationParseError, IdempotentRequest, StoredResponse,
+};
 pub use ids::{EventId, OrderId, ReservationId, SessionId, UserId};
 pub use owner_answer::{PurchaseAnswer, QueueState, ReservationAnswer};
 pub use owner_command::OwnerCommand;

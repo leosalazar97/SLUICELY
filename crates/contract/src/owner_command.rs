@@ -19,6 +19,7 @@
 //! each command with its own reply sender.
 
 use crate::idempotency_key::IdempotencyKey;
+use crate::idempotency_record::IdempotentRequest;
 use crate::ids::{ReservationId, SessionId, UserId};
 use crate::ticket_quantity::TicketQuantity;
 
@@ -75,6 +76,35 @@ impl OwnerCommand {
             | OwnerCommand::ExpireDue => None,
         }
     }
+
+    /// Returns the request that the idempotency table compares on a retry.
+    ///
+    /// Errors: none.
+    /// Guarantees: `Some` exactly when `idempotency_key` is `Some`. The
+    /// request has the same user and the same quantity or reservation as
+    /// the command. It does not hold the key.
+    pub fn idempotent_request(&self) -> Option<IdempotentRequest> {
+        match self {
+            OwnerCommand::Reserve {
+                user_id, quantity, ..
+            } => Some(IdempotentRequest::Reserve {
+                user_id: *user_id,
+                quantity: *quantity,
+            }),
+            OwnerCommand::Buy {
+                user_id,
+                reservation_id,
+                ..
+            } => Some(IdempotentRequest::Buy {
+                user_id: *user_id,
+                reservation_id: *reservation_id,
+            }),
+            OwnerCommand::Join { .. }
+            | OwnerCommand::Leave { .. }
+            | OwnerCommand::AdmitDue
+            | OwnerCommand::ExpireDue => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -118,5 +148,51 @@ mod tests {
         for command in &without_key {
             assert_eq!(command.idempotency_key(), None);
         }
+    }
+
+    #[test]
+    fn a_request_exists_exactly_when_a_key_exists() {
+        let key = IdempotencyKey::parse("key-1").unwrap();
+        let session_id = SessionId::from_uuid(Uuid::from_u128(1));
+        let user_id = UserId::from_uuid(Uuid::from_u128(2));
+        let quantity = TicketQuantity::new(2).unwrap();
+        let reservation_id = ReservationId::from_uuid(Uuid::from_u128(3));
+
+        let commands = [
+            OwnerCommand::Reserve {
+                user_id,
+                quantity,
+                idempotency_key: key.clone(),
+            },
+            OwnerCommand::Buy {
+                user_id,
+                reservation_id,
+                idempotency_key: key,
+            },
+            OwnerCommand::Join {
+                session_id,
+                user_id,
+            },
+            OwnerCommand::Leave { session_id },
+            OwnerCommand::AdmitDue,
+            OwnerCommand::ExpireDue,
+        ];
+        for command in &commands {
+            assert_eq!(
+                command.idempotent_request().is_some(),
+                command.idempotency_key().is_some()
+            );
+        }
+        assert_eq!(
+            commands[0].idempotent_request(),
+            Some(IdempotentRequest::Reserve { user_id, quantity })
+        );
+        assert_eq!(
+            commands[1].idempotent_request(),
+            Some(IdempotentRequest::Buy {
+                user_id,
+                reservation_id
+            })
+        );
     }
 }
