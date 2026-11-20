@@ -33,6 +33,7 @@ pub mod random;
 pub mod rate_controller;
 pub mod reservation_status;
 pub mod seed;
+pub mod sse_message;
 pub mod ticket_quantity;
 
 pub use admission_policy::{AdmissionPolicy, PolicyError};
@@ -50,4 +51,5 @@ pub use random::RandomSource;
 pub use rate_controller::{AdmissionRate, BackendObservation, ObservationError, RateController};
 pub use reservation_status::{ReservationStatus, ReservationStatusParseError};
 pub use seed::Seed;
+pub use sse_message::SseMessage;
 pub use ticket_quantity::{TicketQuantity, TicketQuantityError, MAX_TICKETS_PER_USER};
