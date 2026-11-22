@@ -21,24 +21,33 @@ use chrono::{DateTime, Utc};
 use std::time::Duration;
 use thiserror::Error;
 
-/// How many users may enter per second. The value 0 means "admit nobody".
+// LEARN: The number is in THOUSANDTHS of a user per second (milli-users per
+// second). So 1000 means 1 user per second, and 500 means 1 user every 2
+// seconds. Why: an adaptive controller cuts the rate by a factor (for
+// example half). With whole users per second, the rate gets stuck at 1 or
+// jumps to 0. A finer unit lets it go lower. It is still a whole number, so
+// there is no float, no rounding and no NaN. In Java you would use `long`
+// milli-units instead of `double` for the same reason.
+/// How fast users may enter, in thousandths of a user per second.
+/// The value 0 means "admit nobody".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AdmissionRate(u32);
 
 impl AdmissionRate {
-    /// Builds a rate from users per second.
+    /// Builds a rate from milli-users per second (1000 = 1 user per second).
     ///
     /// Errors: none.
-    /// Guarantees: `users_per_second` returns the same number.
-    pub const fn from_users_per_second(value: u32) -> Self {
+    /// Guarantees: `milli_users_per_second` returns the same number.
+    pub const fn from_milli_users_per_second(value: u32) -> Self {
         Self(value)
     }
 
-    /// Returns the rate in users per second.
+    /// Returns the rate in milli-users per second (1000 = 1 user per second).
     ///
     /// Errors: none.
-    /// Guarantees: returns exactly the number given to `from_users_per_second`.
-    pub const fn users_per_second(&self) -> u32 {
+    /// Guarantees: returns exactly the number given to
+    /// `from_milli_users_per_second`.
+    pub const fn milli_users_per_second(&self) -> u32 {
         self.0
     }
 }
@@ -174,14 +183,25 @@ mod tests {
     #[test]
     fn rate_keeps_its_value_and_zero_is_allowed() {
         assert_eq!(
-            AdmissionRate::from_users_per_second(50).users_per_second(),
-            50
+            AdmissionRate::from_milli_users_per_second(50_000).milli_users_per_second(),
+            50_000
         );
         assert_eq!(
-            AdmissionRate::from_users_per_second(0).users_per_second(),
+            AdmissionRate::from_milli_users_per_second(0).milli_users_per_second(),
             0
         );
-        assert!(AdmissionRate::from_users_per_second(1) < AdmissionRate::from_users_per_second(2));
+        assert!(
+            AdmissionRate::from_milli_users_per_second(1)
+                < AdmissionRate::from_milli_users_per_second(2)
+        );
+    }
+
+    #[test]
+    fn rate_can_be_below_one_user_per_second() {
+        // 500 milli-users per second = one user every two seconds.
+        let slow = AdmissionRate::from_milli_users_per_second(500);
+        assert!(slow > AdmissionRate::from_milli_users_per_second(0));
+        assert!(slow < AdmissionRate::from_milli_users_per_second(1000));
     }
 
     #[test]
@@ -204,11 +224,12 @@ mod tests {
     #[test]
     fn controller_works_as_a_trait_object_and_is_send() {
         assert_send::<dyn RateController>();
-        let mut controller: Box<dyn RateController> =
-            Box::new(FixedRate(AdmissionRate::from_users_per_second(50)));
+        let mut controller: Box<dyn RateController> = Box::new(FixedRate(
+            AdmissionRate::from_milli_users_per_second(50_000),
+        ));
         let observation =
             BackendObservation::new(time(0), Duration::from_millis(20), 10, 0).unwrap();
         controller.observe(&observation);
-        assert_eq!(controller.current_rate().users_per_second(), 50);
+        assert_eq!(controller.current_rate().milli_users_per_second(), 50_000);
     }
 }
