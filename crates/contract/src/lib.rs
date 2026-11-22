@@ -45,7 +45,7 @@ pub use idempotency_record::{
     IdempotentOperation, IdempotentOperationParseError, IdempotentRequest, StoredResponse,
 };
 pub use ids::{EventId, OrderId, ReservationId, SessionId, UserId};
-pub use owner_answer::{PurchaseAnswer, QueueState, ReservationAnswer};
+pub use owner_answer::{PurchaseAnswer, QueueState, ReservationAnswer, StatusAnswer};
 pub use owner_command::OwnerCommand;
 pub use owner_error::OwnerError;
 pub use queue_entry::QueueEntry;

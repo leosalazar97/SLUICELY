@@ -14,8 +14,8 @@
 //! The successful answers of the `event_owner`.
 //!
 //! Join gives a `QueueState`, reserve gives a `ReservationAnswer`, buy gives a
-//! `PurchaseAnswer`. Leave has no data, so it answers with `()`. The failed
-//! answers are in `OwnerError`. Every value inside is already checked, so the
+//! `PurchaseAnswer`, status gives a `StatusAnswer`. Leave has no data, so it
+//! answers with `()`. The failed//! answers are in `OwnerError`. Every value inside is already checked, so the
 //! fields are public. The JSON form is used by the api and by the
 //! idempotency table. Reading JSON runs the checks of the inner types.
 
@@ -56,6 +56,20 @@ pub struct PurchaseAnswer {
     pub order_id: OrderId,
     pub reservation_id: ReservationId,
     pub quantity: TicketQuantity,
+}
+
+// LEARN: `Option<T>` is Rust's "maybe a value". It is `Some(value)` or
+// `None`. In JSON, `None` is written as `null`. In Java it is like a field
+// that can be `null`, but the compiler forces you to check it.
+/// Everything a user needs to see after a reload.
+///
+/// `reservation` is the reservation that holds stock (`Reserved`), if any.
+/// `order` is the purchase, if the user already bought. Both can be `None`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StatusAnswer {
+    pub queue: QueueState,
+    pub reservation: Option<ReservationAnswer>,
+    pub order: Option<PurchaseAnswer>,
 }
 
 #[cfg(test)]
@@ -130,5 +144,38 @@ mod tests {
         let bad = json.replace("\"quantity\":3", "\"quantity\":99");
         assert_ne!(bad, json, "the replace must really change the text");
         assert!(serde_json::from_str::<ReservationAnswer>(&bad).is_err());
+    }
+
+    #[test]
+    fn status_answer_json_is_exact_and_round_trips() {
+        let empty = StatusAnswer {
+            queue: QueueState::Admitted,
+            reservation: None,
+            order: None,
+        };
+        assert_eq!(
+            serde_json::to_string(&empty).unwrap(),
+            r#"{"queue":{"state":"admitted"},"reservation":null,"order":null}"#
+        );
+
+        let reservation_id = ReservationId::from_uuid(Uuid::from_u128(1));
+        let quantity = TicketQuantity::new(2).unwrap();
+        let full = StatusAnswer {
+            queue: QueueState::Admitted,
+            reservation: Some(ReservationAnswer {
+                reservation_id,
+                quantity,
+                expires_at: DateTime::<Utc>::from_timestamp(1300, 0).unwrap(),
+            }),
+            order: Some(PurchaseAnswer {
+                order_id: OrderId::from_uuid(Uuid::from_u128(2)),
+                reservation_id,
+                quantity,
+            }),
+        };
+        for answer in [empty, full] {
+            let json = serde_json::to_string(&answer).unwrap();
+            assert_eq!(serde_json::from_str::<StatusAnswer>(&json).unwrap(), answer);
+        }
     }
 }

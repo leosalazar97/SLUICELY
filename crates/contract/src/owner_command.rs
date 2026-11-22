@@ -33,6 +33,10 @@ pub enum OwnerCommand {
     },
     /// A session leaves the queue.
     Leave { session_id: SessionId },
+    /// Read only. Asks where a session is now: its queue state, its active
+    /// reservation and its order. Changes nothing, so it has no key. The page
+    /// uses it after a reload or a reconnect.
+    Status { session_id: SessionId },
     /// An admitted user reserves tickets. Carries an idempotency key (I4).
     Reserve {
         user_id: UserId,
@@ -72,6 +76,7 @@ impl OwnerCommand {
             } => Some(idempotency_key),
             OwnerCommand::Join { .. }
             | OwnerCommand::Leave { .. }
+            | OwnerCommand::Status { .. }
             | OwnerCommand::AdmitDue
             | OwnerCommand::ExpireDue => None,
         }
@@ -101,6 +106,7 @@ impl OwnerCommand {
             }),
             OwnerCommand::Join { .. }
             | OwnerCommand::Leave { .. }
+            | OwnerCommand::Status { .. }
             | OwnerCommand::AdmitDue
             | OwnerCommand::ExpireDue => None,
         }
@@ -142,6 +148,7 @@ mod tests {
                 user_id,
             },
             OwnerCommand::Leave { session_id },
+            OwnerCommand::Status { session_id },
             OwnerCommand::AdmitDue,
             OwnerCommand::ExpireDue,
         ];
@@ -174,6 +181,7 @@ mod tests {
                 user_id,
             },
             OwnerCommand::Leave { session_id },
+            OwnerCommand::Status { session_id },
             OwnerCommand::AdmitDue,
             OwnerCommand::ExpireDue,
         ];
