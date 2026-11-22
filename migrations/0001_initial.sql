@@ -23,6 +23,9 @@
 --   `QueueEntryStatus` and `ReservationStatus` in the contract crate.
 -- - `seed` is a signed 64-bit number. It holds the bits of `Seed`, see
 --   `Seed::to_i64_bits`.
+-- - Postgres has no unsigned numbers. Stock and TTL are `u32` in the
+--   contract, so their columns are `bigint` with an upper CHECK of 4294967295.
+-- - `position` is `bigint`. `QueuePosition` stops at `i64::MAX`.
 -- - Inventory is counted in tickets, not in rows (D8).
 -- - All times are `timestamptz`. All values are in UTC (Document 0).
 -- - No table creates IDs. The edges create them (the contract says so).
@@ -33,27 +36,35 @@
 -- code, or a person using psql, must follow it.
 CREATE TABLE events (
     event_id                uuid        PRIMARY KEY,
-    total_inventory         integer     NOT NULL,
-    sold                    integer     NOT NULL DEFAULT 0,
-    reserved                integer     NOT NULL DEFAULT 0,
+    total_inventory         bigint      NOT NULL,
+    sold                    bigint      NOT NULL DEFAULT 0,
+    reserved                bigint      NOT NULL DEFAULT 0,
     window_start            timestamptz NOT NULL,
     window_end              timestamptz NOT NULL,
-    reservation_ttl_seconds integer     NOT NULL,
+    reservation_ttl_seconds bigint      NOT NULL,
     seed                    bigint      NOT NULL,
 
     CONSTRAINT events_total_inventory_positive
         CHECK (total_inventory >= 1),
+    -- The contract holds stock as `u32`. The database must refuse any number
+    -- that Rust cannot read back.
+    CONSTRAINT events_total_inventory_fits_u32
+        CHECK (total_inventory <= 4294967295),
     CONSTRAINT events_sold_not_negative
         CHECK (sold >= 0),
     CONSTRAINT events_reserved_not_negative
         CHECK (reserved >= 0),
-    -- I1: never more tickets sold or held than the total.
+    -- I1: never more tickets sold or held than the total. Both counters are
+    -- >= 0, so each one is also <= total <= the u32 maximum. They need no
+    -- upper check of their own.
     CONSTRAINT events_inventory_not_oversold
         CHECK (sold + reserved <= total_inventory),
     CONSTRAINT events_window_goes_forward
         CHECK (window_end > window_start),
     CONSTRAINT events_reservation_ttl_positive
-        CHECK (reservation_ttl_seconds >= 1)
+        CHECK (reservation_ttl_seconds >= 1),
+    CONSTRAINT events_reservation_ttl_fits_u32
+        CHECK (reservation_ttl_seconds <= 4294967295)
 );
 
 -- One row per session that joined an event.
