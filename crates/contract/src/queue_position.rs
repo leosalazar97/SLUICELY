@@ -33,15 +33,19 @@ pub enum QueuePositionError {
     /// The number is 0. Places start at 1.
     #[error("queue position must be 1 or more")]
     Zero,
+    /// The number is bigger than `i64::MAX`. The database column is `bigint`.
+    #[error("queue position is too large for the database")]
+    TooLarge,
 }
 
 impl QueuePosition {
     /// Builds a position from a number counted from 1.
     ///
-    /// Errors: none. It returns `None` for 0, so the caller must handle it.
-    /// Guarantees: a position that is returned is 1 or more.
+    /// Errors: none. It returns `None` for 0 and for a number above
+    /// `i64::MAX`, so the caller must handle it.
+    /// Guarantees: a position that is returned is between 1 and `i64::MAX`.
     pub fn new(value: u64) -> Option<Self> {
-        if value == 0 {
+        if value == 0 || value > i64::MAX as u64 {
             None
         } else {
             Some(Self(value))
@@ -51,9 +55,31 @@ impl QueuePosition {
     /// Returns the place number, counted from 1.
     ///
     /// Errors: none.
-    /// Guarantees: the value is 1 or more.
+    /// Guarantees: the value is between 1 and `i64::MAX`.
     pub fn get(&self) -> u64 {
         self.0
+    }
+
+    /// Gives the place as an `i64`, to write it in a `bigint` column.
+    ///
+    /// Errors: none.
+    /// Guarantees: the value is between 1 and `i64::MAX`. The cast cannot
+    /// lose bits, because `new` rejects anything above `i64::MAX`.
+    pub fn to_i64(&self) -> i64 {
+        self.0 as i64
+    }
+
+    /// Builds a position from a `bigint` column.
+    ///
+    /// Errors: none. It returns `None` for 0 or a negative number, so the
+    /// caller must handle it (a bad row in the database).
+    /// Guarantees: a position that is returned is between 1 and `i64::MAX`.
+    pub fn from_i64(value: i64) -> Option<Self> {
+        if value < 1 {
+            None
+        } else {
+            Some(Self(value as u64))
+        }
     }
 }
 
@@ -62,7 +88,11 @@ impl TryFrom<u64> for QueuePosition {
 
     /// Same check as `QueuePosition::new`. Used by serde when it reads JSON.
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        Self::new(value).ok_or(QueuePositionError::Zero)
+        if value == 0 {
+            Err(QueuePositionError::Zero)
+        } else {
+            Self::new(value).ok_or(QueuePositionError::TooLarge)
+        }
     }
 }
 
@@ -107,5 +137,29 @@ mod tests {
         );
         assert!(serde_json::from_str::<QueuePosition>("0").is_err());
         assert!(serde_json::from_str::<QueuePosition>("-1").is_err());
+    }
+
+    #[test]
+    fn the_largest_database_value_is_the_maximum() {
+        let largest = QueuePosition::new(i64::MAX as u64).unwrap();
+        assert_eq!(largest.to_i64(), i64::MAX);
+        assert_eq!(QueuePosition::new(i64::MAX as u64 + 1), None);
+        assert_eq!(
+            QueuePosition::try_from(u64::MAX),
+            Err(QueuePositionError::TooLarge)
+        );
+        assert_eq!(QueuePosition::try_from(0), Err(QueuePositionError::Zero));
+        assert!(serde_json::from_str::<QueuePosition>("9223372036854775808").is_err());
+    }
+
+    #[test]
+    fn database_conversion_round_trips_and_rejects_bad_rows() {
+        for value in [1_i64, 2, 1_000, i64::MAX] {
+            let position = QueuePosition::from_i64(value).unwrap();
+            assert_eq!(position.to_i64(), value);
+        }
+        assert_eq!(QueuePosition::from_i64(0), None);
+        assert_eq!(QueuePosition::from_i64(-1), None);
+        assert_eq!(QueuePosition::from_i64(i64::MIN), None);
     }
 }

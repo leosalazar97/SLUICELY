@@ -18,10 +18,14 @@
 //! about HTTP.
 //!
 //! A failed answer to `Reserve` or `Buy` is stored under its idempotency key,
-//! so a retry with the same key gives the same failure (I4). The one
-//! exception is `TemporarilyUnavailable`: nothing was written, so nothing is
-//! stored, and the client can retry with the same key. See
-//! `OwnerError::is_stored_under_key`.
+//! so a retry with the same key gives the same failure (I4). Two errors are
+//! never stored:
+//! - `TemporarilyUnavailable`: nothing was written, so the client can retry
+//!   with the same key.
+//! - `IdempotencyKeyReused`: a row already exists for this key and holds the
+//!   FIRST answer. Storing this error would overwrite that answer.
+//!
+//! See `OwnerError::is_stored_under_key`.
 
 use crate::reservation_status::ReservationStatus;
 use serde::{Deserialize, Serialize};
@@ -85,11 +89,12 @@ impl OwnerError {
     /// its idempotency key, so a retry with the same key gets the same error.
     ///
     /// Errors: none.
-    /// Guarantees: false only for `TemporarilyUnavailable`, because nothing
-    /// was written in that case. True for every other error.
+    /// Guarantees: false for `TemporarilyUnavailable` (nothing was written)
+    /// and for `IdempotencyKeyReused` (the first answer must stay). True for
+    /// every other error.
     pub fn is_stored_under_key(&self) -> bool {
         match self {
-            OwnerError::TemporarilyUnavailable => false,
+            OwnerError::TemporarilyUnavailable | OwnerError::IdempotencyKeyReused => false,
             OwnerError::AlreadyLeft
             | OwnerError::NotInQueue
             | OwnerError::NotAdmitted
@@ -99,8 +104,7 @@ impl OwnerError {
             | OwnerError::NotEnoughStock
             | OwnerError::ReservationNotFound
             | OwnerError::ReservationNotActive { .. }
-            | OwnerError::PaymentFailed
-            | OwnerError::IdempotencyKeyReused => true,
+            | OwnerError::PaymentFailed => true,
         }
     }
 }
@@ -148,13 +152,11 @@ mod tests {
     }
 
     #[test]
-    fn only_the_temporary_failure_is_not_stored() {
+    fn only_two_errors_are_not_stored() {
         for error in every_error() {
-            assert_eq!(
-                error.is_stored_under_key(),
-                error != OwnerError::TemporarilyUnavailable,
-                "{error:?}"
-            );
+            let not_stored = error == OwnerError::TemporarilyUnavailable
+                || error == OwnerError::IdempotencyKeyReused;
+            assert_eq!(error.is_stored_under_key(), !not_stored, "{error:?}");
         }
     }
 

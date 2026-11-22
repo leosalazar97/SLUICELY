@@ -1,5 +1,5 @@
 # The contract crate: shared types, traits and errors for all areas.
-# Empty for now. Content comes in a later round.
+# It has no I/O. Only types, traits and rules that every area shares.
 
 [package]
 name = "contract"

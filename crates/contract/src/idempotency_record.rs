@@ -279,6 +279,10 @@ mod tests {
             StoredResponse::from_failure(OwnerError::TemporarilyUnavailable),
             None
         );
+        assert_eq!(
+            StoredResponse::from_failure(OwnerError::IdempotencyKeyReused),
+            None
+        );
     }
 
     #[test]
