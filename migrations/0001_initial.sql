@@ -13,7 +13,7 @@
 -- ============================================================
 
 -- Migration 0001: the first schema. Part 1 has the events and the queue.
---
+-- Part 2 has the reservations, the orders and the idempotency keys.--
 -- The database is the last defence for the invariants (Technical Document,
 -- section 5). The owner also checks, but a rule written here cannot be
 -- skipped by a bug in the code.
@@ -106,3 +106,117 @@ CREATE TABLE queue_entries (
 CREATE UNIQUE INDEX queue_entries_position_unique
     ON queue_entries (event_id, position)
     WHERE position IS NOT NULL;
+    
+-- ------------------------------------------------------------
+-- Part 2: reservations, orders and idempotency keys.
+-- ------------------------------------------------------------
+
+-- One row per reservation. A reservation holds tickets from the stock.
+--
+-- Contract links: `status` uses the `as_str` values of `ReservationStatus`.
+-- The quantity range is `TicketQuantity` (1 to MAX_TICKETS_PER_USER = 4).
+CREATE TABLE reservations (
+    reservation_id uuid        PRIMARY KEY,
+    event_id       uuid        NOT NULL REFERENCES events (event_id),
+    user_id        uuid        NOT NULL,
+    quantity       integer     NOT NULL,
+    status         text        NOT NULL,
+    created_at     timestamptz NOT NULL,
+    expires_at     timestamptz NOT NULL,
+
+    CONSTRAINT reservations_quantity_in_range
+        CHECK (quantity BETWEEN 1 AND 4),
+    CONSTRAINT reservations_status_known
+        CHECK (status IN ('reserved', 'purchased', 'expired', 'cancelled')),
+    CONSTRAINT reservations_expires_after_creation
+        CHECK (expires_at > created_at),
+
+    -- LEARN: This looks useless, because `reservation_id` is already unique.
+    -- It exists so that `orders` can point to ALL FOUR columns at once. A
+    -- foreign key needs a unique rule on the columns it points to.
+    CONSTRAINT reservations_key_for_orders
+        UNIQUE (reservation_id, event_id, user_id, quantity)
+);
+
+-- I2: a user holds at most one active or bought reservation per event.
+-- `expired` and `cancelled` do not hold stock, so they are not counted. The
+-- statuses here are the ones where `ReservationStatus::holds_stock` is true.
+CREATE UNIQUE INDEX reservations_one_holding_per_user
+    ON reservations (event_id, user_id)
+    WHERE status IN ('reserved', 'purchased');
+
+-- The owner looks for reservations to expire. Only `reserved` rows can expire.
+CREATE INDEX reservations_due_to_expire
+    ON reservations (event_id, expires_at)
+    WHERE status = 'reserved';
+
+-- One row per completed purchase.
+CREATE TABLE orders (
+    order_id       uuid        PRIMARY KEY,
+    event_id       uuid        NOT NULL,
+    user_id        uuid        NOT NULL,
+    reservation_id uuid        NOT NULL,
+    quantity       integer     NOT NULL,
+    created_at     timestamptz NOT NULL,
+
+    CONSTRAINT orders_quantity_in_range
+        CHECK (quantity BETWEEN 1 AND 4),
+    -- I2: a reservation is bought once.
+    CONSTRAINT orders_one_per_reservation
+        UNIQUE (reservation_id),
+    -- I2: a user buys once per event (the error `AlreadyPurchased`).
+    CONSTRAINT orders_one_per_user_and_event
+        UNIQUE (event_id, user_id),
+    -- The order has the same event, user and quantity as its reservation.
+    CONSTRAINT orders_match_their_reservation
+        FOREIGN KEY (reservation_id, event_id, user_id, quantity)
+        REFERENCES reservations (reservation_id, event_id, user_id, quantity)
+);
+
+-- I4: what we answered for each idempotency key.
+--
+-- Contract links: `request` is the JSON of `IdempotentRequest`. `response` is
+-- the JSON of `StoredResponse`. `operation` is `IdempotentOperation::as_str`.
+-- The key text rule is `IdempotencyKey::parse`: visible ASCII, 1 to 128.
+-- `TemporarilyUnavailable` and `IdempotencyKeyReused` are never stored.
+--
+-- LEARN: A CHECK rule that gives NULL counts as PASSED. If a JSON object has
+-- no "operation" field, `request ->> 'operation'` is NULL, and a plain
+-- comparison would be NULL too, so a bad row would get in. That is why the
+-- rules below use `IS NOT DISTINCT FROM` and `IS NOT NULL`.
+CREATE TABLE idempotency_keys (
+    event_id        uuid        NOT NULL REFERENCES events (event_id),
+    user_id         uuid        NOT NULL,
+    idempotency_key text        NOT NULL,
+    operation       text        NOT NULL,
+    request         jsonb       NOT NULL,
+    response        jsonb       NOT NULL,
+    created_at      timestamptz NOT NULL,
+
+    -- One key means one request, in one event, for one user.
+    PRIMARY KEY (event_id, user_id, idempotency_key),
+
+    CONSTRAINT idempotency_keys_key_shape
+        CHECK (idempotency_key ~ '^[!-~]{1,128}$'),
+    CONSTRAINT idempotency_keys_operation_known
+        CHECK (operation IN ('reserve', 'buy')),
+    CONSTRAINT idempotency_keys_request_matches_row
+        CHECK (
+            jsonb_typeof(request) = 'object'
+            AND (request ->> 'operation') IS NOT DISTINCT FROM operation
+            AND (request ->> 'user_id') IS NOT DISTINCT FROM user_id::text
+        ),
+    -- Mirrors `StoredResponse::fits`: a reservation answer only for Reserve,
+    -- a purchase answer only for Buy, a failure for both.
+    CONSTRAINT idempotency_keys_response_fits_operation
+        CHECK (
+            jsonb_typeof(response) = 'object'
+            AND (response ->> 'outcome') IS NOT NULL
+            AND (
+                (operation = 'reserve'
+                    AND response ->> 'outcome' IN ('reserved', 'failed'))
+                OR (operation = 'buy'
+                    AND response ->> 'outcome' IN ('purchased', 'failed'))
+            )
+        )
+);
