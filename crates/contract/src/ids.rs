@@ -20,8 +20,8 @@
 //! (api, store, simulator) create new IDs and pass them in.
 
 // LEARN: `macro_rules!` writes code for you at compile time. Think of it as
-// a copy-and-paste tool that the compiler understands. Here it makes four
-// almost equal ID types, so we do not write the same code four times.
+// a copy-and-paste tool that the compiler understands. Here it makes five
+// almost equal ID types, so we do not write the same code five times.
 // In Java you would use a code generator or Lombok. `$name` is the slot where
 // each ID name goes.
 //
